@@ -23,12 +23,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     env:
-      CYPRESS_OWM_API_KEY: ${{ secrets.OWM_API_KEY }}
-      CYPRESS_OWM_EMAIL: ${{ secrets.OWM_EMAIL }}
-      CYPRESS_OWM_PASSWORD: ${{ secrets.OWM_PASSWORD }}
-      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.openweathermap.org' }}
-      UI_BASE_URL: ${{ vars.UI_BASE_URL || 'https://home.openweathermap.org' }}
-      BASE_URL: ${{ vars.BASE_URL }}
+      CYPRESS_OWM_API_KEY: ${{ secrets.CYPRESS_OWM_API_KEY }}
+      CYPRESS_OWM_EMAIL: ${{ secrets.CYPRESS_OWM_EMAIL }}
+      CYPRESS_OWM_PASSWORD: ${{ secrets.CYPRESS_OWM_PASSWORD }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL || 'https://api.openweathermap.org' }}
+      UI_BASE_URL: ${{ secrets.UI_BASE_URL || 'https://home.openweathermap.org' }}
+      BASE_URL: ${{ secrets.BASE_URL }}
     steps:
       - name: Check Madrid schedule time
         id: local-time
