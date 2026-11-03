@@ -1,0 +1,1 @@
+{ "stepDefinitions": ["cypress/support/step_definitions/**/*.ts"] }
