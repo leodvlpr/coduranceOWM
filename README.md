@@ -87,7 +87,7 @@ npm run load
 
 ## CI notes
 
-Push and pull request workflows run type checking. Live API and UI checks run daily at 9:00 AM Europe/Madrid time or by manual workflow dispatch. GitHub Actions cron uses UTC, so the workflow checks both possible UTC hours and runs the tests only at 9:00 AM in Madrid, including daylight-saving changes.
+The workflow runs type checking and live API/UI checks when a new PR targeting `main` is opened and when changes are pushed to `main` (including merges). It also runs every Monday at 9:00 AM Europe/Madrid time. GitHub Actions cron uses UTC, so the schedule checks both possible UTC hours and runs the tests only at 9:00 AM in Madrid, including daylight-saving changes. Live tests are skipped for forked PRs because GitHub does not expose repository secrets to those workflows.
 
 The workflow uses `API_BASE_URL` and `UI_BASE_URL` repository variables when set; otherwise, it uses the sample hosts above. Add these repository secrets for the live tests and report email:
 
