@@ -4,10 +4,11 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "0 7,8 * * *"
 
 jobs:
   typecheck:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,19 +26,88 @@ jobs:
       CYPRESS_OWM_API_KEY: ${{ secrets.OWM_API_KEY }}
       CYPRESS_OWM_EMAIL: ${{ secrets.OWM_EMAIL }}
       CYPRESS_OWM_PASSWORD: ${{ secrets.OWM_PASSWORD }}
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.openweathermap.org' }}
+      UI_BASE_URL: ${{ vars.UI_BASE_URL || 'https://home.openweathermap.org' }}
+      BASE_URL: ${{ vars.BASE_URL }}
     steps:
+      - name: Check Madrid schedule time
+        id: local-time
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != "schedule" ] || [ "$(TZ=Europe/Madrid date +%H)" = "09" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.local-time.outputs.run == 'true'
       - uses: actions/setup-node@v4
+        if: steps.local-time.outputs.run == 'true'
         with:
           node-version: 20
           cache: npm
       - run: npm ci
+        if: steps.local-time.outputs.run == 'true'
       - name: API tests
-        run: npm run test:api
+        id: api-tests
+        if: steps.local-time.outputs.run == 'true'
+        continue-on-error: true
+        run: >-
+          npx cypress run --browser chrome --spec "cypress/e2e/api/**/*.cy.ts"
+          --reporter mochawesome
+          --reporter-options "reportDir=cypress/reports/raw,overwrite=false,html=false,json=true"
       - name: UI (BDD) tests
-        run: npm run test:ui
+        id: ui-tests
+        if: steps.local-time.outputs.run == 'true'
+        continue-on-error: true
+        run: >-
+          npx cypress run --browser chrome --spec "cypress/e2e/ui/**/*.feature"
+          --reporter mochawesome
+          --reporter-options "reportDir=cypress/reports/raw,overwrite=false,html=false,json=true"
+      - name: Generate Mochawesome PDF
+        id: generate-report
+        if: always() && steps.local-time.outputs.run == 'true'
+        run: |
+          npx mochawesome-merge "cypress/reports/raw/*.json" -o cypress/reports/mochawesome.json
+          npx marge cypress/reports/mochawesome.json --reportDir cypress/reports --reportFilename mochawesome
+          google-chrome --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --print-to-pdf="$PWD/cypress/reports/mochawesome.pdf" \
+            "file://$PWD/cypress/reports/mochawesome.html"
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always() && steps.generate-report.outcome == 'success'
         with:
-          name: cypress-screenshots
-          path: cypress/screenshots
+          name: mochawesome-report
+          path: |
+            cypress/reports/mochawesome.html
+            cypress/reports/mochawesome.pdf
+      - name: Validate email settings
+        id: email-settings
+        if: always() && steps.generate-report.outcome == 'success' && steps.local-time.outputs.run == 'true'
+        env:
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          REPORT_EMAIL_TO: ${{ secrets.REPORT_EMAIL_TO }}
+          REPORT_EMAIL_FROM: ${{ secrets.REPORT_EMAIL_FROM }}
+        run: |
+          if [ -z "$SMTP_SERVER" ] || [ -z "$SMTP_PORT" ] || [ -z "$SMTP_USERNAME" ] || \
+            [ -z "$SMTP_PASSWORD" ] || [ -z "$REPORT_EMAIL_TO" ] || [ -z "$REPORT_EMAIL_FROM" ]; then
+            echo "::error::Configure SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, REPORT_EMAIL_TO, and REPORT_EMAIL_FROM repository secrets."
+            exit 1
+          fi
+      - name: Email Mochawesome PDF
+        if: always() && steps.generate-report.outcome == 'success' && steps.local-time.outputs.run == 'true' && steps.email-settings.outcome == 'success'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: Daily weather test report
+          body: The attached PDF contains the latest Cypress Mochawesome test report.
+          to: ${{ secrets.REPORT_EMAIL_TO }}
+          from: ${{ secrets.REPORT_EMAIL_FROM }}
+          attachments: cypress/reports/mochawesome.pdf
+      - name: Fail workflow if tests failed
+        if: always() && steps.local-time.outputs.run == 'true' && (steps.api-tests.outcome == 'failure' || steps.ui-tests.outcome == 'failure')
+        run: exit 1

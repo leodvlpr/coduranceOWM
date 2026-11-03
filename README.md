@@ -87,7 +87,14 @@ npm run load
 
 ## CI notes
 
-Push and pull request workflows run type checking. Live API and UI checks run on the weekly schedule or by manual workflow dispatch to limit failures caused by third-party outages, rate limits, or site changes. Screenshots are uploaded on test failure.
+Push and pull request workflows run type checking. Live API and UI checks run daily at 9:00 AM Europe/Madrid time or by manual workflow dispatch. GitHub Actions cron uses UTC, so the workflow checks both possible UTC hours and runs the tests only at 9:00 AM in Madrid, including daylight-saving changes.
+
+The workflow uses `API_BASE_URL` and `UI_BASE_URL` repository variables when set; otherwise, it uses the sample hosts above. Add these repository secrets for the live tests and report email:
+
+- Test credentials: `OWM_API_KEY`, `OWM_EMAIL`, `OWM_PASSWORD`
+- SMTP delivery: `SMTP_SERVER`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `REPORT_EMAIL_TO`, `REPORT_EMAIL_FROM`
+
+The workflow generates and emails a Mochawesome PDF and also uploads the HTML and PDF reports as an Actions artifact. `BASE_URL` is passed through as a repository variable for the optional k6 load-test target; the workflow does not run load tests, and that URL should point to a controlled test service, not the public OpenWeather API.
 
 ## Next steps for the full system
 
