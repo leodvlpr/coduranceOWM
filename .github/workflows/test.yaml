@@ -70,6 +70,7 @@ jobs:
           npx mochawesome-merge "cypress/reports/raw/*.json" -o cypress/reports/mochawesome.json
           npx marge cypress/reports/mochawesome.json --reportDir cypress/reports --reportFilename mochawesome
           google-chrome --headless --no-sandbox --disable-gpu --disable-dev-shm-usage \
+            --virtual-time-budget=5000 --run-all-compositor-stages-before-draw \
             --print-to-pdf="$PWD/cypress/reports/mochawesome.pdf" \
             "file://$PWD/cypress/reports/mochawesome.html"
       - uses: actions/upload-artifact@v4
